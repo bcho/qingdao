@@ -4,6 +4,7 @@ package priority
 import (
 	"errors"
 	"fmt"
+	"net"
 	"sync"
 	"time"
 
@@ -21,6 +22,22 @@ var (
 	ErrScheduling    = errors.New("queue is already scheduling")
 	ErrNotScheduling = errors.New("queue is not scheduling")
 )
+
+func wrapErrTimeout(err error) error {
+	if err == nil {
+		return nil
+	}
+	if err == redis.Nil {
+		return queue.ErrTimeout
+	}
+	switch err := err.(type) {
+	case net.Error:
+		if err.Timeout() {
+			return queue.ErrTimeout
+		}
+	}
+	return err
+}
 
 type optSetter func(*impl) error
 
@@ -155,9 +172,7 @@ func (q impl) Dequeue(ctx context.Context, timeout time.Duration) (*job.Job, err
 	}
 
 	d, err := q.redis.BLPop(timeout, q.name).Result()
-	if err == redis.Nil {
-		return nil, queue.ErrTimeout
-	}
+	err = wrapErrTimeout(err)
 	if err != nil {
 		return nil, err
 	}
