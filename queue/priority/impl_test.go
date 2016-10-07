@@ -1,9 +1,11 @@
 package priority
 
 import (
+	"bytes"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"golang.org/x/net/context"
 
@@ -97,7 +99,69 @@ func makeTestQueue(t *testing.T) *impl {
 	return q
 }
 
-func TestQueue_EnqueueDequeue(t *testing.T) {}
+func TestQueue_EnqueueDequeue(t *testing.T) {
+	q := makeTestQueue(t)
+	ctx := context.Background()
+
+	defer func() {
+		if err := q.StopSchedule(ctx); err != nil {
+			t.Fatalf("StopSchedule: %+v", err)
+		}
+	}()
+
+	j1 := job.New()
+	j2 := job.New()
+	isJob := func(j *job.Job, expected ...*job.Job) {
+		for _, expectedJob := range expected {
+			if bytes.Compare(j.Id, expectedJob.Id) == 0 {
+				return
+			}
+		}
+
+		t.Fatalf("isJob: %s != %+v", j, expected)
+	}
+
+	if err := q.Enqueue(ctx, j1); err != nil {
+		t.Fatalf("Enqueue: %+v", err)
+	}
+
+	if err := q.Enqueue(ctx, j2); err != nil {
+		t.Fatalf("Enqueue: %+v", err)
+	}
+
+	_, err := q.Dequeue(ctx, 1*time.Millisecond)
+	if err != ErrNotScheduling {
+		t.Fatalf("Dequeue requires scheduling")
+	}
+
+	var startWg sync.WaitGroup
+	startWg.Add(1)
+	go func() {
+		startWg.Done()
+		if err := q.StartSchedule(ctx); err != nil {
+			t.Fatalf("StartSchedule: %+v", err)
+		}
+	}()
+
+	startWg.Wait()
+
+	dj1, err := q.Dequeue(ctx, 1*time.Millisecond)
+	if err != nil {
+		t.Fatalf("Dequeue: %+v", err)
+	}
+	isJob(dj1, j1, j2)
+
+	dj2, err := q.Dequeue(ctx, 1*time.Millisecond)
+	if err != nil {
+		t.Fatalf("Dequeue: %+v", err)
+	}
+	isJob(dj2, j1, j2)
+
+	dj3, err := q.Dequeue(ctx, 1*time.Second)
+	if err != queue.ErrTimeout {
+		t.Fatalf("Dequeue should be timeout: %+v %+v", err, dj3)
+	}
+}
 
 func TestPriorityQueue_ScheduleLock(t *testing.T) {
 	q := makeTestQueue(t)

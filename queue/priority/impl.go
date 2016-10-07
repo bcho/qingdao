@@ -19,6 +19,7 @@ const defaultName = "qd.queue.priority"
 var (
 	ErrRedisRequired = errors.New("redis client requird. set with `WithRedis`")
 	ErrScheduling    = errors.New("queue is already scheduling")
+	ErrNotScheduling = errors.New("queue is not scheduling")
 )
 
 type optSetter func(*impl) error
@@ -147,6 +148,10 @@ func (q impl) Enqueue(ctx context.Context, job *job.Job) error {
 }
 
 func (q impl) Dequeue(ctx context.Context, timeout time.Duration) (*job.Job, error) {
+	if !q.isScheduling() {
+		return nil, ErrNotScheduling
+	}
+
 	d, err := q.redis.BLPop(timeout, q.name).Result()
 	if err == redis.Nil {
 		return nil, queue.ErrTimeout
