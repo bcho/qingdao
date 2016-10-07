@@ -85,6 +85,10 @@ func makeTestQueue(t *testing.T) *impl {
 		t.Fatalf("makeTestQueue: %+v", err)
 	}
 
+	if err := qi.Truncate(context.Background()); err != nil {
+		t.Fatalf("makeTestQueue: unable to truncate: %+v", err)
+	}
+
 	q, ok := qi.(*impl)
 	if !ok {
 		t.Fatalf("makeTestQueue: unable to new `*impl`")

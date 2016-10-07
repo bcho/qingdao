@@ -10,6 +10,7 @@ import (
 // A basic mock rediser
 type mockRediser struct {
 	watch         func(func(*redis.Tx) error, ...string) error
+	del           func(...string) *redis.IntCmd
 	blpop         func(time.Duration, ...string) *redis.StringSliceCmd
 	zadd          func(string, ...redis.Z) *redis.IntCmd
 	zrangeByScore func(string, redis.ZRangeBy) *redis.StringSliceCmd
@@ -17,6 +18,10 @@ type mockRediser struct {
 
 func (m mockRediser) Watch(a func(*redis.Tx) error, b ...string) error {
 	return m.watch(a, b...)
+}
+
+func (m mockRediser) Del(a ...string) *redis.IntCmd {
+	return m.del(a...)
 }
 
 func (m mockRediser) BLPop(a time.Duration, b ...string) *redis.StringSliceCmd {
@@ -34,6 +39,7 @@ func (m mockRediser) ZRangeByScore(a string, b redis.ZRangeBy) *redis.StringSlic
 func makeMockRediser() mockRediser {
 	return mockRediser{
 		watch:         func(func(*redis.Tx) error, ...string) error { return nil },
+		del:           func(...string) *redis.IntCmd { return nil },
 		blpop:         func(time.Duration, ...string) *redis.StringSliceCmd { return nil },
 		zadd:          func(string, ...redis.Z) *redis.IntCmd { return nil },
 		zrangeByScore: func(string, redis.ZRangeBy) *redis.StringSliceCmd { return nil },

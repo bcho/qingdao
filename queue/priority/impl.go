@@ -25,6 +25,7 @@ type optSetter func(*impl) error
 
 type rediser interface {
 	Watch(func(*redis.Tx) error, ...string) error
+	Del(...string) *redis.IntCmd
 	BLPop(time.Duration, ...string) *redis.StringSliceCmd
 	ZAdd(string, ...redis.Z) *redis.IntCmd
 	ZRangeByScore(string, redis.ZRangeBy) *redis.StringSliceCmd
@@ -120,6 +121,10 @@ func New(setters ...optSetter) (queue.PriorityQueue, error) {
 	q.scheduleSetName = fmt.Sprintf("%s.zset", q.name)
 
 	return q, nil
+}
+
+func (q impl) Truncate(ctx context.Context) error {
+	return q.redis.Del(q.name, q.scheduleSetName).Err()
 }
 
 func (q impl) Enqueue(ctx context.Context, job *job.Job) error {

@@ -17,6 +17,9 @@ type Queue interface {
 	// Dequeue a job with timeout.
 	// Returns `ErrTimeout` when timeout.
 	Dequeue(context.Context, time.Duration) (*job.Job, error)
+
+	// Truncate job queue.
+	Truncate(context.Context) error
 }
 
 // Queue with priority.
