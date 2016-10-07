@@ -48,7 +48,10 @@ func makeMockRediser() mockRediser {
 
 // A real redis (for ci)
 func makeRealRediser() *redis.Client {
-	return redis.NewClient(&redis.Options{
-		Addr: os.Getenv("QINGDAO_TEST_REDIS_ADDR"),
-	})
+	addr := os.Getenv("QINGDAO_TEST_REDIS_ADDR")
+	if addr == "" {
+		addr = "127.0.0.1:6379"
+	}
+
+	return redis.NewClient(&redis.Options{Addr: addr})
 }

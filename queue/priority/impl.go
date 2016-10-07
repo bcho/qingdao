@@ -17,7 +17,7 @@ import (
 const defaultName = "qd.queue.priority"
 
 var (
-	ErrRedisRequired = errors.New("redis client requird. set with `WithRedis`")
+	ErrRedisRequired = errors.New("redis client required. set with `WithRedis`")
 	ErrScheduling    = errors.New("queue is already scheduling")
 	ErrNotScheduling = errors.New("queue is not scheduling")
 )
