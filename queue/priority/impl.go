@@ -24,9 +24,9 @@ var (
 type optSetter func(*impl) error
 
 type rediser interface {
-	Watch(func(*redis.Tx) error, string) error
-	BLPop(time.Duration, string) *redis.StringSliceCmd
-	ZAdd(string, redis.Z) *redis.IntCmd
+	Watch(func(*redis.Tx) error, ...string) error
+	BLPop(time.Duration, ...string) *redis.StringSliceCmd
+	ZAdd(string, ...redis.Z) *redis.IntCmd
 	ZRangeByScore(string, redis.ZRangeBy) *redis.StringSliceCmd
 }
 
@@ -160,13 +160,14 @@ func (q impl) isScheduling() bool {
 }
 
 func (q *impl) StartSchedule(context.Context) error {
-	if q.isScheduling() {
-		return ErrScheduling
-	}
-
 	q.scheduleLock.Lock()
-	q.scheduling = true
-	q.scheduleLock.Unlock()
+	if q.scheduling {
+		q.scheduleLock.Unlock()
+		return ErrScheduling
+	} else {
+		q.scheduling = true
+		q.scheduleLock.Unlock()
+	}
 
 	for {
 		var maxScore string
@@ -213,8 +214,8 @@ func (q *impl) StartSchedule(context.Context) error {
 
 func (q *impl) StopSchedule(context.Context) error {
 	q.scheduleLock.Lock()
-	defer q.scheduleLock.Unlock()
 	q.scheduling = false
+	q.scheduleLock.Unlock()
 
 	return nil
 }
