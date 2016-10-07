@@ -76,15 +76,17 @@ type JobScorer func(job.Job) float64
 type MaxScoreGetter func(queue.PriorityQueue) string
 
 // Sort jobs with `AvailableAt`
-func WithPriorityByAvailableAt(q *impl) error {
-	q.getJobScore = func(j job.Job) float64 {
-		return float64(j.AvailableAt.Unix())
-	}
-	q.getMaxScore = func(queue.PriorityQueue) string {
-		return fmt.Sprintf("%d", time.Now().Unix())
-	}
+func WithPriorityByAvailableAt() optSetter {
+	return func(q *impl) error {
+		q.getJobScore = func(j job.Job) float64 {
+			return float64(j.AvailableAt.Unix())
+		}
+		q.getMaxScore = func(queue.PriorityQueue) string {
+			return fmt.Sprintf("%d", time.Now().Unix())
+		}
 
-	return nil
+		return nil
+	}
 }
 
 type impl struct {
