@@ -159,7 +159,7 @@ func TestQueue_EnqueueDequeue(t *testing.T) {
 	}
 	isJob(t, dj2, j1, j2)
 
-	dj3, err := q.Dequeue(ctx, 1*time.Second)
+	dj3, err := q.Dequeue(ctx, 3*time.Second)
 	if err != queue.ErrTimeout {
 		t.Fatalf("Dequeue should be timeout: %+v %+v", err, dj3)
 	}
@@ -254,7 +254,7 @@ func TestPriorityQueue_WithPriorityByAvailable(t *testing.T) {
 	}
 	isJob(t, dj, j1)
 
-	dj, err = q.Dequeue(ctx, 1*time.Second)
+	dj, err = q.Dequeue(ctx, 3*time.Second)
 	if err != queue.ErrTimeout {
 		t.Fatalf("Dequeue should be timeout: %+v %+v", err, dj)
 	}
