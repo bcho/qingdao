@@ -1,12 +1,15 @@
 package executor
 
 import (
+	"errors"
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	"golang.org/x/net/context"
 
+	"github.com/bcho/qingdao/job"
 	"github.com/bcho/qingdao/queue"
 	"github.com/bcho/qingdao/queue/priority"
 	"gopkg.in/redis.v4"
@@ -163,6 +166,93 @@ func TestExecutor_Basic(t *testing.T) {
 	}
 }
 
-func TestExecutor_ExecuteWithoutExecutor(t *testing.T) {}
-func TestExecutor_ExecuteWithError(t *testing.T)       {}
-func TestExecutor_ExecuteWithNewJobs(t *testing.T)     {}
+type executeSuite struct {
+	ctx      context.Context
+	queue    queue.Queue
+	executor *impl
+	done     chan reqStop
+}
+
+func newExecuteSuite(t *testing.T) *executeSuite {
+	resetJobExecutors()
+	ctx := context.Background()
+	done := make(chan reqStop)
+
+	var startWg sync.WaitGroup
+	q := makeTestQueue(t).(queue.PriorityQueue)
+	startWg.Add(1)
+	ei, err := New(
+		WithQueue(q),
+		BeforeStart(func(context.Context, Executor, ExecutorState) error {
+			go q.StartSchedule(ctx)
+			startWg.Done()
+			return nil
+		}),
+		AfterStop(func(context.Context, Executor, ExecutorState) error {
+			return q.StopSchedule(ctx)
+		}),
+	)
+	if err != nil {
+		t.Fatalf("newExecuteSuite: %+v", err)
+	}
+	e := ei.(*impl)
+
+	go func() {
+		if err := e.Start(ctx); err != nil {
+			t.Fatalf("Start: %+v", err)
+		}
+	}()
+
+	startWg.Wait()
+
+	go func() {
+		select {
+		case req := <-done:
+			if err := e.Stop(ctx); err != nil {
+				t.Fatalf("Stop: %+v", err)
+			}
+			req.ack()
+		}
+	}()
+
+	time.Sleep(1 * time.Second)
+
+	return &executeSuite{ctx, q, e, done}
+}
+
+func _TestExecutor_ExecuteWithoutExecutor(t *testing.T) {
+	s := newExecuteSuite(t)
+	defer func() {
+		makeReqStop().doAndClose(s.done)
+	}()
+
+	// nothing will happen
+	s.executor.NewJobChan() <- job.New()
+}
+
+func TestExecutor_ExecuteWithError(t *testing.T) {
+	j := job.New()
+	mockErr := errors.New("mock error")
+
+	s := newExecuteSuite(t)
+	defer func() {
+		makeReqStop().doAndClose(s.done)
+	}()
+
+	RegisterJobExecutor(j.Type, func(context.Context, *job.Job) ([]*job.Job, error) {
+		return nil, mockErr
+	})
+
+	s.executor.NewJobChan() <- j
+
+	select {
+	case err := <-s.executor.ErrChan():
+		if err != mockErr {
+			t.Fatalf("expect mockErr, got: %+v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatalf("should receive error")
+	}
+}
+
+func TestExecutor_ExecuteWithNewJobs(t *testing.T) {}

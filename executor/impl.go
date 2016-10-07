@@ -51,6 +51,28 @@ func AfterStop(h ExecutorStateHookFn) optSetter {
 	}
 }
 
+type reqStop struct {
+	resp chan struct{}
+}
+
+func makeReqStop() reqStop {
+	return reqStop{resp: make(chan struct{})}
+}
+
+func (r reqStop) ack() {
+	r.resp <- struct{}{}
+}
+
+func (r reqStop) do(c chan reqStop) {
+	c <- r
+	<-r.resp
+}
+
+func (r reqStop) doAndClose(c chan reqStop) {
+	r.do(c)
+	close(c)
+}
+
 type impl struct {
 	state   ExecutorState
 	errChan chan error
@@ -63,13 +85,13 @@ type impl struct {
 	hookAfterStop   ExecutorStateHookFn
 
 	// child executors
-	executorsCount   int
-	executorJobChan  chan *job.Job
-	executorStopChan chan struct{}
+	executorsCount    int
+	executorsJobChan  chan *job.Job
+	executorsStopChan chan reqStop
 
 	// accept new job
 	newJobChan     chan *job.Job
-	stopNewJobChan chan struct{}
+	stopNewJobChan chan reqStop
 }
 
 // New creates an executor with options.
@@ -81,11 +103,11 @@ func New(setters ...optSetter) (Executor, error) {
 
 		jobDequeueTimeout: 30 * time.Second,
 
-		executorsCount:  4,
-		executorJobChan: make(chan *job.Job, 1024),
+		executorsCount:   4,
+		executorsJobChan: make(chan *job.Job, 1024),
 
 		newJobChan:     make(chan *job.Job, 1024),
-		stopNewJobChan: make(chan struct{}),
+		stopNewJobChan: make(chan reqStop),
 	}
 
 	for _, setter := range setters {
@@ -94,7 +116,7 @@ func New(setters ...optSetter) (Executor, error) {
 		}
 	}
 
-	e.executorStopChan = make(chan struct{}, e.executorsCount)
+	e.executorsStopChan = make(chan reqStop, e.executorsCount)
 
 	if e.q == nil {
 		return nil, ErrQueueRequired
@@ -103,7 +125,7 @@ func New(setters ...optSetter) (Executor, error) {
 	return e, nil
 }
 
-func (e impl) State() ExecutorState {
+func (e *impl) State() ExecutorState {
 	e.l.RLock()
 	defer e.l.RUnlock()
 	return e.state
@@ -121,7 +143,10 @@ func (e *impl) Start(c context.Context) error {
 	}
 
 	if e.hookBeforeStart != nil {
-		e.hookBeforeStart(c, e, ExecutorStateRunning)
+		if err := e.hookBeforeStart(c, e, ExecutorStateRunning); err != nil {
+			e.l.Unlock()
+			return err
+		}
 	}
 	e.state = ExecutorStateRunning
 
@@ -146,10 +171,10 @@ func (e *impl) spawnExecutor(c context.Context, executorId int, wg *sync.WaitGro
 	wg.Done()
 	for {
 		select {
-		case <-e.executorStopChan:
-			e.executorStopChan <- struct{}{}
+		case req := <-e.executorsStopChan:
+			req.ack()
 			return
-		case job := <-e.executorJobChan:
+		case job := <-e.executorsJobChan:
 			newJobs, exeErr := ExecuteJob(c, job)
 			e.handleExecutionError(c, job, exeErr)
 			e.acceptNewJobs(c, newJobs)
@@ -179,9 +204,9 @@ func (e *impl) acceptNewJobs(c context.Context, jobs []*job.Job) {
 func (e *impl) acceptNewJob(c context.Context) {
 	for {
 		select {
-		case <-e.stopNewJobChan:
+		case req := <-e.stopNewJobChan:
 			close(e.newJobChan)
-			close(e.stopNewJobChan)
+			req.ack()
 			return
 		case job := <-e.newJobChan:
 			// TODO check duplicate
@@ -195,7 +220,7 @@ func (e *impl) acceptNewJob(c context.Context) {
 func (e *impl) readFromQueue(c context.Context) error {
 	for {
 		if e.State() != ExecutorStateRunning {
-			close(e.executorJobChan)
+			close(e.executorsJobChan)
 			return nil
 		}
 
@@ -208,7 +233,7 @@ func (e *impl) readFromQueue(c context.Context) error {
 			continue
 		}
 
-		e.executorJobChan <- job
+		e.executorsJobChan <- job
 	}
 }
 
@@ -238,17 +263,16 @@ func (e *impl) Stop(c context.Context) error {
 
 func (e *impl) stopExecutors() error {
 	for i := 0; i < e.executorsCount; i++ {
-		e.executorStopChan <- struct{}{}
-		<-e.executorStopChan
+		req := makeReqStop()
+		req.do(e.executorsStopChan)
 	}
-	close(e.executorStopChan)
+	close(e.executorsStopChan)
 
 	return nil
 }
 
 func (e *impl) stopAcceptNewJob() error {
-	e.stopNewJobChan <- struct{}{}
-	<-e.stopNewJobChan
+	makeReqStop().doAndClose(e.stopNewJobChan)
 
 	return nil
 }

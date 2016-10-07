@@ -11,11 +11,15 @@ import (
 type JobExecutor func(context.Context, *job.Job) ([]*job.Job, error)
 
 // Registered job executors.
-var jobExecutors = map[job.JobType]JobExecutor{}
+var jobExecutors map[job.JobType]JobExecutor
 
 // Register a job executor for given job type.
 func RegisterJobExecutor(t job.JobType, e JobExecutor) {
 	jobExecutors[t] = e
+}
+
+func resetJobExecutors() {
+	jobExecutors = make(map[job.JobType]JobExecutor)
 }
 
 // Execute a job.
@@ -25,4 +29,8 @@ func ExecuteJob(c context.Context, job *job.Job) ([]*job.Job, error) {
 	} else {
 		return nil, ErrJobNotExecuted
 	}
+}
+
+func init() {
+	resetJobExecutors()
 }

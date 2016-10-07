@@ -9,6 +9,7 @@ import (
 )
 
 func TestRegisterJobExecutor(t *testing.T) {
+	resetJobExecutors()
 	mockExecutor := func(context.Context, *job.Job) ([]*job.Job, error) {
 		return nil, nil
 	}
@@ -26,6 +27,7 @@ func TestRegisterJobExecutor(t *testing.T) {
 }
 
 func TestExecuteJob(t *testing.T) {
+	resetJobExecutors()
 	ctx := context.Background()
 	j := job.New()
 
