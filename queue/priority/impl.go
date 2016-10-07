@@ -4,7 +4,6 @@ package priority
 import (
 	"errors"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
@@ -204,7 +203,6 @@ func (q *impl) StartSchedule(context.Context) error {
 			return err
 		}, q.scheduleSetName)
 
-		log.Printf("%t", q.isScheduling())
 		if !q.isScheduling() {
 			break
 		}
@@ -214,7 +212,6 @@ func (q *impl) StartSchedule(context.Context) error {
 }
 
 func (q *impl) StopSchedule(context.Context) error {
-	log.Printf("stop schedule")
 	q.scheduleLock.Lock()
 	defer q.scheduleLock.Unlock()
 	q.scheduling = false

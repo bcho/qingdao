@@ -3,52 +3,10 @@ package priority
 import (
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/bcho/qingdao/job"
 	"github.com/bcho/qingdao/queue"
-
-	"gopkg.in/redis.v4"
 )
-
-var (
-	noopWatch         = func(func(*redis.Tx) error, string) error { return nil }
-	noopBLPop         = func(time.Duration, string) *redis.StringSliceCmd { return nil }
-	noopZAdd          = func(string, redis.Z) *redis.IntCmd { return nil }
-	noopZRangeByScore = func(string, redis.ZRangeBy) *redis.StringSliceCmd { return nil }
-)
-
-type mockRediser struct {
-	watch         func(func(*redis.Tx) error, string) error
-	blpop         func(time.Duration, string) *redis.StringSliceCmd
-	zadd          func(string, redis.Z) *redis.IntCmd
-	zrangeByScore func(string, redis.ZRangeBy) *redis.StringSliceCmd
-}
-
-func (m mockRediser) Watch(a func(*redis.Tx) error, b string) error {
-	return m.watch(a, b)
-}
-
-func (m mockRediser) BLPop(a time.Duration, b string) *redis.StringSliceCmd {
-	return m.blpop(a, b)
-}
-
-func (m mockRediser) ZAdd(a string, b redis.Z) *redis.IntCmd {
-	return m.zadd(a, b)
-}
-
-func (m mockRediser) ZRangeByScore(a string, b redis.ZRangeBy) *redis.StringSliceCmd {
-	return m.zrangeByScore(a, b)
-}
-
-func makeMockRediser() mockRediser {
-	return mockRediser{
-		watch:         noopWatch,
-		blpop:         noopBLPop,
-		zadd:          noopZAdd,
-		zrangeByScore: noopZRangeByScore,
-	}
-}
 
 func TestNew_WithRedis(t *testing.T) {
 	_, err := New()
@@ -115,5 +73,6 @@ func TestNew_WithMaxScoreGetter(t *testing.T) {
 	}
 }
 
-func TestQueue_EnqueueDequeue(t *testing.T)       {}
+func TestQueue_EnqueueDequeue(t *testing.T) {}
+
 func TestPriorityQueue_ScheduleLock(t *testing.T) {}
