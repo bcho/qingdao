@@ -40,6 +40,22 @@ func makeTestQueue(t *testing.T) queue.Queue {
 	return q
 }
 
+func waitWaitGroup(t *testing.T, wg sync.WaitGroup, timeout time.Duration) {
+	wgDone := make(chan struct{})
+
+	go func() {
+		wg.Wait()
+		wgDone <- struct{}{}
+	}()
+
+	select {
+	case <-wgDone:
+		return
+	case <-time.After(timeout):
+		t.Fatalf("wait failed")
+	}
+}
+
 func TestNew_WithQueue(t *testing.T) {
 	_, err := New()
 	if err != ErrQueueRequired {
@@ -137,7 +153,7 @@ func TestExecutor_Basic(t *testing.T) {
 		stopWg.Done()
 	}()
 
-	startWg.Wait()
+	waitWaitGroup(t, startWg, 10*time.Second)
 
 	if e.ErrChan() == nil {
 		t.Fatalf("ErrChan should not be nil")
@@ -159,7 +175,7 @@ func TestExecutor_Basic(t *testing.T) {
 		t.Fatalf("Stop: %+v")
 	}
 
-	stopWg.Wait()
+	waitWaitGroup(t, stopWg, 10*time.Second)
 
 	if e.State() != ExecutorStateStopped {
 		t.Fatalf("unexpected state: %s", e.State())
@@ -203,7 +219,7 @@ func newExecuteSuite(t *testing.T) *executeSuite {
 		}
 	}()
 
-	startWg.Wait()
+	waitWaitGroup(t, startWg, 10*time.Second)
 
 	go func() {
 		select {
