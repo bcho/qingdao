@@ -144,16 +144,14 @@ func TestExecutor_Basic(t *testing.T) {
 		t.Fatalf("unexpected state: %s", e.State())
 	}
 
-	var startWg, stopWg sync.WaitGroup
+	var startWg sync.WaitGroup
 
 	startWg.Add(1)
-	stopWg.Add(1)
 	go func() {
 		startWg.Done()
 		if err := e.Start(ctx); err != nil {
 			t.Fatalf("Start: %+v", err)
 		}
-		stopWg.Done()
 	}()
 
 	waitWaitGroup(t, "startWg", &startWg, 10*time.Second)
@@ -177,8 +175,6 @@ func TestExecutor_Basic(t *testing.T) {
 	if err := e.Stop(ctx); err != nil {
 		t.Fatalf("Stop: %+v")
 	}
-
-	waitWaitGroup(t, "stopWg", &stopWg, 10*time.Second)
 
 	if e.State() != ExecutorStateStopped {
 		t.Fatalf("unexpected state: %s", e.State())
