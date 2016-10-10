@@ -51,6 +51,13 @@ func AfterStop(h ExecutorStateHookFn) optSetter {
 	}
 }
 
+func WithDequeueTimeout(timeout time.Duration) optSetter {
+	return func(e *impl) error {
+		e.jobDequeueTimeout = timeout
+		return nil
+	}
+}
+
 type reqStop struct {
 	resp chan struct{}
 }
@@ -219,12 +226,10 @@ func (e *impl) acceptNewJob(c context.Context) {
 
 func (e *impl) readFromQueue(c context.Context) error {
 	for {
-		if e.State() != ExecutorStateRunning {
-			close(e.executorsJobChan)
-			return nil
-		}
-
 		job, err := e.q.Dequeue(c, e.jobDequeueTimeout)
+		if e.State() != ExecutorStateRunning {
+			break
+		}
 		if err == queue.ErrTimeout {
 			continue
 		}
@@ -235,6 +240,9 @@ func (e *impl) readFromQueue(c context.Context) error {
 
 		e.executorsJobChan <- job
 	}
+
+	close(e.executorsJobChan)
+	return nil
 }
 
 func (e *impl) Stop(c context.Context) error {

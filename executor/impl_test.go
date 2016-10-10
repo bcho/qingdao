@@ -132,7 +132,10 @@ func TestNew_AfterStop(t *testing.T) {
 func TestExecutor_Basic(t *testing.T) {
 	ctx := context.Background()
 
-	e, err := New(WithQueue(makeTestQueue(t)))
+	e, err := New(
+		WithQueue(makeTestQueue(t)),
+		WithDequeueTimeout(1*time.Second),
+	)
 	if err != nil {
 		t.Errorf("unexpected %+v", err)
 	}
@@ -199,6 +202,7 @@ func newExecuteSuite(t *testing.T) *executeSuite {
 	startWg.Add(1)
 	ei, err := New(
 		WithQueue(q),
+		WithDequeueTimeout(1*time.Second),
 		BeforeStart(func(context.Context, Executor, ExecutorState) error {
 			go q.StartSchedule(ctx)
 			startWg.Done()
@@ -230,8 +234,6 @@ func newExecuteSuite(t *testing.T) *executeSuite {
 			req.ack()
 		}
 	}()
-
-	time.Sleep(1 * time.Second)
 
 	return &executeSuite{ctx, q, e, done}
 }
